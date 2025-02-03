@@ -52,7 +52,7 @@ func (s *ChatServer) SendMessage(ctx context.Context, req *pb.SendMessageRequest
 
 // **2. 监听 gRPC 消息流**
 func (s *ChatServer) ReceiveMessages(req *pb.ListenMessagesRequest, stream pb.ChatService_ReceiveMessagesServer) error {
-	ctx := context.Background()
+	ctx := stream.Context() // 确保使用流的上下文
 	userID := req.UserId
 
 	// **记录用户的消息流**
@@ -60,42 +60,46 @@ func (s *ChatServer) ReceiveMessages(req *pb.ListenMessagesRequest, stream pb.Ch
 	s.Streams[userID] = stream
 	s.mu.Unlock()
 
+	log.Printf("用户 %d 连接 gRPC 监听消息流", userID)
+
+	// **使用 defer 确保删除 Stream**
+	defer func() {
+		s.mu.Lock()
+		delete(s.Streams, userID)
+		s.mu.Unlock()
+		log.Printf("用户 %d 断开 gRPC 连接，已删除其 Stream", userID)
+	}()
+
 	// **获取 Redis 中的离线消息**
 	key := fmt.Sprintf("offline:%d", userID)
 	messages, err := s.Redis.LRange(ctx, key, 0, -1).Result()
 	if err == nil && len(messages) > 0 {
 		for _, msg := range messages {
-			// **解析存储的离线消息格式 "SenderId:Message"**
 			parts := strings.SplitN(msg, ":", 2)
 			if len(parts) == 2 {
 				senderID, _ := strconv.ParseInt(parts[0], 10, 64)
 				message := parts[1]
 
-				// **保持 SenderId 为真实的发送者**
-				stream.Send(&pb.Message{
+				err := stream.Send(&pb.Message{
 					SenderId:   senderID,
 					ReceiverId: userID,
 					Message:    message,
 					Timestamp:  time.Now().Format(time.RFC3339),
 				})
+				if err != nil {
+					log.Printf("用户 %d WebSocket 断开，无法发送离线消息", userID)
+					return err
+				}
 			}
 		}
-		s.Redis.Del(ctx, key) // **删除已发送的离线消息**
+		s.Redis.Del(ctx, key) // **删除 Redis 里的离线消息**
 		log.Printf("用户 %d 收到了 %d 条离线消息", userID, len(messages))
 	}
 
-	// **持续监听新消息**
-	for {
-		select {
-		case <-stream.Context().Done():
-			// **用户断开连接，删除流**
-			s.mu.Lock()
-			delete(s.Streams, userID)
-			s.mu.Unlock()
-			log.Printf("用户 %d 断开 gRPC 连接", userID)
-			return nil
-		}
-	}
+	// **监听 gRPC 连接状态**
+	<-ctx.Done() // 阻塞等待用户断开
+	log.Printf("检测到用户 %d 断开 gRPC 连接", userID)
+	return nil
 }
 
 // **3. 通过 gRPC Stream 直接推送消息**
