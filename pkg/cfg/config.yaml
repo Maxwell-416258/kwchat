@@ -5,8 +5,8 @@ postgres:
     host: "127.0.0.1"
     port: 5432
     user: "root"
-    password: "xzx527416"
-    dbname: "khchat"
+    password: "root"
+    dbname: "Kowhai"
 
 redis:
     host: "127.0.0.1"

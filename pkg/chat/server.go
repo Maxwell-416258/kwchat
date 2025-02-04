@@ -84,7 +84,7 @@ func (s *ChatServer) ReceiveMessages(req *pb.ListenMessagesRequest, stream pb.Ch
 					SenderId:   senderID,
 					ReceiverId: userID,
 					Message:    message,
-					Timestamp:  time.Now().Format(time.RFC3339),
+					Timestamp:  time.Now().Format(time.DateTime),
 				})
 				if err != nil {
 					log.Printf("用户 %d WebSocket 断开，无法发送离线消息", userID)
@@ -113,7 +113,7 @@ func (s *ChatServer) pushMessageToClient(receiverID int64, msg *pb.SendMessageRe
 			SenderId:   msg.SenderId,
 			ReceiverId: msg.ReceiverId,
 			Message:    msg.Message,
-			Timestamp:  time.Now().Format(time.RFC3339),
+			Timestamp:  time.Now().Format(time.DateTime),
 		})
 		if err != nil {
 			log.Println("gRPC 消息推送失败:", err)
