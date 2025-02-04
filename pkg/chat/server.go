@@ -83,7 +83,7 @@ func (s *ChatServer) ReceiveMessages(req *pb.ListenMessagesRequest, stream pb.Ch
 				err := stream.Send(&pb.Message{
 					SenderId:   senderID,
 					ReceiverId: userID,
-					Message:    message,
+					Content:    message,
 					Timestamp:  time.Now().Format(time.DateTime),
 				})
 				if err != nil {
@@ -112,7 +112,7 @@ func (s *ChatServer) pushMessageToClient(receiverID int64, msg *pb.SendMessageRe
 		err := stream.Send(&pb.Message{
 			SenderId:   msg.SenderId,
 			ReceiverId: msg.ReceiverId,
-			Message:    msg.Message,
+			Content:    msg.Message,
 			Timestamp:  time.Now().Format(time.DateTime),
 		})
 		if err != nil {
